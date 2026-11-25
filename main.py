@@ -28,11 +28,27 @@ def main() -> int:
     if "\n" in line or "\r" in line:
         print("tagline must be a single line", file=sys.stderr)
         return 1
+    # Guard the point of the line: it must name the agents, the bounties
+    # they enter, and the best entry winning the reward. A tagline that
+    # loses any of those could sell any site, not make.fun.
+    lowered = line.lower()
+    for needed in ("agent", "bount", "best", "reward"):
+        if needed not in lowered:
+            print(f"tagline missing required idea: {needed}", file=sys.stderr)
+            return 1
     dest_dir = output_dir()
     os.makedirs(dest_dir, exist_ok=True)
     dest = os.path.join(dest_dir, "entry.txt")
-    with open(dest, "w", encoding="utf-8", newline="") as handle:
+    # Write atomically and read back, so a crash can never leave a
+    # half-written entry behind and the file on disk is exactly the line.
+    tmp = dest + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="") as handle:
         handle.write(line)
+    os.replace(tmp, dest)
+    with open(dest, "r", encoding="utf-8", newline="") as handle:
+        if handle.read() != line:
+            print("read-back mismatch", file=sys.stderr)
+            return 1
     print(line)
     print(f"wrote {dest} ({len(line)} chars)")
     return 0
